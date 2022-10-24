@@ -1,70 +1,15 @@
-import json
-import requests
 import re
-from urllib.parse import urljoin
-import lxml.html
-from bs4 import BeautifulSoup
 import os
+from bs4 import BeautifulSoup
+from selenium.webdriver.support.wait import WebDriverWait
 from unicodedata import normalize
+from selenium.webdriver.support import expected_conditions as EC
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from utils.logging import LoggingApp
+from models.productAmazon import ProductAmazon
 
-
-xpath_array = ["//a[starts-with(@href, 'tel')"]
-regex_prefix_array = [r'[+][0-9]{2,3}', r'[+][(][0-9]{2,3}']
-contact_paths = ['Contact us', 'Contact', 'Contactanos', 'Contacto', 'Contactenos']
-regex_array = [
-    r'\(?\d{1}\)?[\s-]\d{3}[\s-]\d{3}[\s-]\d{4}',
-    r'\(?\d{1}\)?[\s.]\d{3}[\s.]\d{3}[\s.]\d{4}',
-    r'\+\(?\d{1,3}\)?[\s.-]?\d{1,9}[\s.-]?\d{1,9}[\s.-]?\d{1,9}',
-    r'(?:\d{1,9}){4,9}[\s.-](?:\d{1,9}){4,9}',
-    r'\+?\(?:?\d{1,3}\)?[-]\d{1,9}[-]\d{1,9}[-]\d{4,9}',
-    r'\+?\(?:?\d{1,3}\)?[\s]\d{1,9}[\s]\d{1,9}[\s]\d{4,9}',
-    r'\+?\(?:?\d{1,3}\)?[\s.-]?\d{1,9}[\s.-]?\d{1,9}[\s.-]?\d{1,9}[\s.-]?\d{1,9}'
-]
-phones = set()
 basedir = os.path.dirname(__file__)
-
-def search_by_regex(response):
-    arr_regn = []
-    for regex in regex_array:
-        try:
-            reg_match = re.findall(regex, response.text)
-            if len(reg_match) > 0:
-                for rm in reg_match:
-                    if len(rm) >= 8:
-                        arr_regn.append(rm)
-                if len(arr_regn) > 0:
-                    phones.update(reg_match)
-                    break
-        except:
-            return None
-
-def search_by_xpath(response):
-    try:
-        soup = BeautifulSoup(response.text, 'html.parser')
-        a_tel_element = soup.find("a", href=re.compile("^tel"))
-        a_tel_text = a_tel_element.text
-        if len(a_tel_text) > 0:
-            phones.update([a_tel_text])
-    except:
-        return None
-
-def search_by_prefix(response):
-    tree = lxml.html.fromstring(response.text)
-    try:
-        with open(os.path.join(basedir, 'country_phone_code.json')) as f:
-            data = json.load(f)
-            for c_code in data:
-                nodos = tree.xpath(f"//*[starts-with(text(),'+{c_code['code']}')]")
-                if len(nodos) > 0:
-                    for node in nodos:
-                        if len(node.text) > 4:
-                            phone = str(node.text)
-                            phones.update([phone])
-                            break
-
-    except Exception as e:
-        print(e)
-        return None
 
 def normalize_text(text):
     text_norm = re.sub(
@@ -75,24 +20,89 @@ def normalize_text(text):
 
     return text_norm
 
-def extract_product_by_url(url):
+class ScrapeAmazon():
+    def __init__(self):
+        self.driver = webdriver.Chrome(executable_path=os.path.join(basedir, 'chromedriver.exe'))
+        self.logging = LoggingApp()
+        self.products_array = []
+    def scrape_amazon_products(self, product_name, pages, pbar_signal):
+        url = f"https://www.amazon.com/s?k={product_name}"
+        arr_href = []
+        products_count = 0
 
-    try:
-        phones.clear()
-        headers = {'User-Agent': 'Mozilla/5.0 (iPad; CPU OS 12_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148'}
-        response = requests.get(url, headers=headers)
-        search_by_xpath(response) # search level 1 by xpath
-        soup = BeautifulSoup(normalize_text(response.text.upper()), 'html.parser')
+        try:
+            self.driver.get(url)
+            WebDriverWait(self.driver, 3).until(
+                EC.presence_of_element_located((By.ID, 's-skipLinkTargetForMainSearchResults')))
+            max_pagination_number = self.driver.find_element(By.XPATH, "//div[contains(@class, 's-pagination-container')]//span[contains(@class, 's-pagination-disabled')][2]").text
+            product_items = self.driver.find_elements(By.CLASS_NAME, "s-product-image-container")
+            max_pagination_number = int(max_pagination_number)
 
-    except:
-        return None
+            if pages != 'Max':
+                max_pagination_number = int(pages)
 
-    return phones
+            estimated_products = len(product_items) * max_pagination_number
 
-def get_url_products(product_name):
-    url = f"https://www.amazon.com/s?k={product_name}"
-    headers = {'User-Agent': 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:80.0) Gecko/20100101 Firefox/80.0'}
-    response = requests.get(url, headers=headers)
-    if response.status_code == 200:
-        soup = BeautifulSoup(response.text, 'html.parser')
-        print(response)
+            for i in range(0, max_pagination_number):
+                url = f"https://www.amazon.com/s?k={product_name}&page={i+1}"
+                self.driver.get(url)
+                WebDriverWait(self.driver, 3).until(
+                    EC.presence_of_element_located((By.ID, 's-skipLinkTargetForMainSearchResults')))
+                product_items = self.driver.find_elements(By.CLASS_NAME, "s-product-image-container")
+
+                if len(product_items) > 0:
+                    for product in product_items:
+                        try:
+                            a_tag = product.find_element(By.TAG_NAME, "a")
+                            href = a_tag.get_attribute('href')
+                            arr_href.append(href)
+                        except:
+                            continue
+
+                if len(arr_href) > 0:
+                    for hrf in arr_href:
+                        self.scrape_product_details(hrf)
+                        products_count=products_count+1
+                        estimated_percent_advance = round((products_count / estimated_products) * 100)
+                        if estimated_percent_advance < 100:
+                            pbar_signal.emit(estimated_percent_advance)
+
+                self.driver.close()
+                return {
+                    "products": self.products_array
+                }
+
+        except Exception as e:
+            self.driver.close()
+
+    def scrape_product_details(self, url):
+        product = ProductAmazon()
+        self.driver.get(url)
+        try:
+            WebDriverWait(self.driver, 3).until(
+                EC.presence_of_element_located((By.ID, 'productTitle')))
+            title = self.driver.find_elements(By.ID, 'productTitle')
+            if len(title) > 0:
+                product.name = title[0].text
+            # Using beautifulSoup for the others tags
+            html = self.driver.page_source
+            soup = BeautifulSoup(html, 'html.parser')
+            #   Price
+            span_price = soup.findAll("span", {"class": "priceToPay"})
+            if len(span_price) > 0:
+                span_price_value = span_price[0].find("span", {"class": "a-offscreen"})
+                if len(span_price_value) > 0:
+                    product.price = span_price_value.text
+            else:
+                #   Price range
+                span_price_range = soup.findAll("span", {"class": "a-price-range"})
+                if len(span_price_range) > 0:
+                    span_price_range = span_price_range[0].findAll("span", {"class": "a-offscreen"})
+                    if len(span_price_range) > 0:
+                        product.price = span_price_range[0].text + "-" + span_price_range[1].text
+
+
+            self.products_array.append(product)
+
+        except:
+            print("NO PRODUCT FOUND")
