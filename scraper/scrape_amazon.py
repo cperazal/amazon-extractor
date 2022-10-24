@@ -56,7 +56,8 @@ class ScrapeAmazon():
                             a_tag = product.find_element(By.TAG_NAME, "a")
                             href = a_tag.get_attribute('href')
                             arr_href.append(href)
-                        except:
+                        except Exception as e:
+                            self.logging.reg_log(str(self.driver.current_url) + "\n" + str(e), "warning")
                             continue
 
                 if len(arr_href) > 0:
@@ -73,6 +74,7 @@ class ScrapeAmazon():
                 }
 
         except Exception as e:
+            self.logging.reg_log(str(self.driver.current_url) + "\n" + str(e), "error")
             self.driver.close()
 
     def scrape_product_details(self, url):
@@ -104,5 +106,6 @@ class ScrapeAmazon():
 
             self.products_array.append(product)
 
-        except:
-            print("NO PRODUCT FOUND")
+        except Exception as e:
+            self.logging.reg_log(str(self.driver.current_url) + "\n" + str(e), "error")
+            self.driver.close()

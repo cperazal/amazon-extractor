@@ -1,7 +1,7 @@
 
 class ProductAmazon:
 
-    def __init__(self, url, name="", price="", stars="", ratings="", colors="", description="", about="", details=[], ):
+    def __init__(self, url="", name="", price="", stars="", ratings="", colors="", description="", about="", details=[], ):
         self.url = url
         self.name = name
         self.price = price
