@@ -13,7 +13,7 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 from PyQt5.QtGui import QPixmap, QFont
 from PyQt5.QtWidgets import QFileDialog, QMessageBox, QWidget, QLabel
 from PyQt5.QtCore import QThread, pyqtSignal, QRect
-from scraper.scrape_amazon import extract_product_by_url, get_url_products
+from scraper.scrape_amazon import ScrapeAmazon
 import pandas as pd
 from urllib.parse import urlparse
 import subprocess
@@ -116,13 +116,27 @@ class Ui_MainWindow(object):
         self.comboBox_stars.addItem("")
         self.comboBox_stars.addItem("")
         self.comboBox_stars.addItem("")
-        self.comboBox_stars.addItem("")
         self.label_4 = QtWidgets.QLabel(self.centralwidget)
         self.label_4.setGeometry(QtCore.QRect(30, 180, 91, 16))
         font = QtGui.QFont()
         font.setPointSize(10)
         self.label_4.setFont(font)
         self.label_4.setObjectName("label_4")
+        self.checkBox_price = QtWidgets.QCheckBox(self.centralwidget)
+        self.checkBox_price.setGeometry(QtCore.QRect(30, 280, 81, 17))
+        self.checkBox_price.setObjectName("checkBox_price")
+        self.text_price_min = QtWidgets.QLineEdit(self.centralwidget)
+        self.text_price_min.setGeometry(QtCore.QRect(190, 280, 151, 21))
+        font = QtGui.QFont()
+        font.setPointSize(10)
+        self.text_price_min.setFont(font)
+        self.text_price_min.setObjectName("text_price_min")
+        self.text_price_min_2 = QtWidgets.QLineEdit(self.centralwidget)
+        self.text_price_min_2.setGeometry(QtCore.QRect(390, 280, 151, 21))
+        font = QtGui.QFont()
+        font.setPointSize(10)
+        self.text_price_min_2.setFont(font)
+        self.text_price_min_2.setObjectName("text_price_min_2")
         MainWindow.setCentralWidget(self.centralwidget)
         self.menubar = QtWidgets.QMenuBar(MainWindow)
         self.menubar.setGeometry(QtCore.QRect(0, 0, 578, 21))
@@ -156,7 +170,7 @@ class Ui_MainWindow(object):
             print(self.checkBox_ships.checkState())
             print(self.checkBox_sold.checkState())
             self.progressBar.setVisible(True)
-            self.extract_thread = ExtractThread(self.lineEdit.text())
+            self.extract_thread = ExtractThread(self.lineEdit.text(), self.comboBox_pages.currentText())
             self.extract_thread.signal_pbar.connect(self.updateProgressBar)
             self.extract_thread.signal_save_csv.connect(self.saveCSVFile)
             self.extract_thread.signal_messagebox.connect(self.showMessageBox)
@@ -192,12 +206,14 @@ class Ui_MainWindow(object):
         self.checkBox_ships.setText(_translate("MainWindow", "Only ships from Amazon"))
         self.checkBox_sold.setText(_translate("MainWindow", "Only sold by from Amazon"))
         self.comboBox_stars.setItemText(0, _translate("MainWindow", "All"))
-        self.comboBox_stars.setItemText(1, _translate("MainWindow", "1"))
-        self.comboBox_stars.setItemText(2, _translate("MainWindow", "2"))
-        self.comboBox_stars.setItemText(3, _translate("MainWindow", "3"))
-        self.comboBox_stars.setItemText(4, _translate("MainWindow", "4"))
-        self.comboBox_stars.setItemText(5, _translate("MainWindow", "5"))
+        self.comboBox_stars.setItemText(1, _translate("MainWindow", "1 & up"))
+        self.comboBox_stars.setItemText(2, _translate("MainWindow", "2 & up"))
+        self.comboBox_stars.setItemText(3, _translate("MainWindow", "3 & up"))
+        self.comboBox_stars.setItemText(4, _translate("MainWindow", "4 & up"))
         self.label_4.setText(_translate("MainWindow", "Stars"))
+        self.checkBox_price.setText(_translate("MainWindow", "Price range"))
+        self.text_price_min.setPlaceholderText(_translate("MainWindow", "$ Min"))
+        self.text_price_min_2.setPlaceholderText(_translate("MainWindow", "$ Max"))
         self.menuHelp.setTitle(_translate("MainWindow", "Help"))
         self.actionAbout.setText(_translate("MainWindow", "About "))
 
@@ -226,9 +242,10 @@ class ExtractThread(QThread):
     signal_pbar = pyqtSignal(int, name="updateProgressBar")
     signal_save_csv = pyqtSignal(list, list, str, name="saveCSVFile")
     signal_messagebox = pyqtSignal(str, str, name="showMessageBox")
-    def __init__(self, product_name):
+    def __init__(self, product_name, number_pages):
         QThread.__init__(self)
         self.product_name = product_name
+        self.number_pages = number_pages
 
     def __del__(self):
         self.wait()
@@ -236,7 +253,9 @@ class ExtractThread(QThread):
     def run(self):
         array_urls = []
         array_phones = []
-        array_url_products = get_url_products(self.product_name)
+        scrapeAmazon = ScrapeAmazon()
+        scrapeAmazon.scrape_amazon_products(self.product_name, self.number_pages, self.signal_pbar)
+        self.signal_pbar.emit(100)
         # rows_count = data.size
         # for i, row in enumerate(data.iterrows()):
         #     url_to_extract = row[1][0]
