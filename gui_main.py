@@ -18,6 +18,7 @@ import pandas as pd
 from urllib.parse import urlparse
 import subprocess
 import os
+import json
 
 basedir = os.path.dirname(__file__)
 class Ui_MainWindow(object):
@@ -25,7 +26,7 @@ class Ui_MainWindow(object):
     csv_to_read = ""
     def setupUi(self, MainWindow):
         MainWindow.setObjectName("MainWindow")
-        MainWindow.resize(578, 502)
+        MainWindow.resize(578, 520)
         MainWindow.setFixedSize(MainWindow.size())
         self.centralwidget = QtWidgets.QWidget(MainWindow)
         self.centralwidget.setObjectName("centralwidget")
@@ -153,6 +154,19 @@ class Ui_MainWindow(object):
         self.menubar.addAction(self.menuHelp.menuAction())
         self.progressBar.setProperty("value", 0)
         self.lbl_message.setVisible(False)
+        # btn open file
+        self.btn_open = QtWidgets.QPushButton(self.centralwidget)
+        self.btn_open.setGeometry(QtCore.QRect(230, 440, 100, 31))
+        font = QtGui.QFont()
+        font.setPointSize(10)
+        font.setBold(True)
+        font.setWeight(75)
+        self.btn_open.setFont(font)
+        icon = QtGui.QIcon()
+        icon.addPixmap(QtGui.QPixmap(os.path.join(basedir, 'icons/open.ico')), QtGui.QIcon.Normal, QtGui.QIcon.Off)
+        self.btn_open.setIcon(icon)
+        self.btn_open.setObjectName("btn_open")
+        self.btn_open.setVisible(False)
 
         self.retranslateUi(MainWindow)
         QtCore.QMetaObject.connectSlotsByName(MainWindow)
@@ -160,6 +174,7 @@ class Ui_MainWindow(object):
         # Events
         self.btn_extract.clicked.connect(self.on_click_extract)
         self.actionAbout.triggered.connect(self.onClickAbout)
+        self.btn_open.clicked.connect(self.onClickOpenFile)
 
     def on_click_extract(self):
         if self.lineEdit.text() == "":
@@ -216,18 +231,14 @@ class Ui_MainWindow(object):
         self.text_price_min_2.setPlaceholderText(_translate("MainWindow", "$ Max"))
         self.menuHelp.setTitle(_translate("MainWindow", "Help"))
         self.actionAbout.setText(_translate("MainWindow", "About "))
+        self.btn_open.setText(_translate("MainWindow", "Open file"))
 
-    def saveCSVFile(self, array_urls, array_phones, csv_name):
+    def saveCSVFile(self, array_products, csv_name):
         dir_csv = 'data_output'
-        data_csv = {
-            'URL': array_urls,
-            'Phones': array_phones
-        }
-        df = pd.DataFrame(data_csv)
-        if not os.path.isdir(dir_csv):
-            os.mkdir(dir_csv)
+        json_string = json.dumps(array_products)
+        df = pd.read_json(json_string, orient='records')
         df.to_csv(f'{dir_csv}/{csv_name}.csv', index=False, encoding='utf-8-sig')
-        self.btn_openfile.setVisible(True)
+        self.btn_open.setVisible(True)
         self.csv_path = f'{os.getcwd()}\data_output\{csv_name}.csv'
 
     def updateProgressBar(self, value):
@@ -237,10 +248,16 @@ class Ui_MainWindow(object):
         self.WAbout = WindowAbout()
         self.WAbout.setWindowModality(QtCore.Qt.WindowModality.ApplicationModal)
         self.WAbout.show()
+
+    def onClickOpenFile(self):
+        subprocess.Popen(fr'explorer /select,"{self.csv_path}"')
+        self.progressBar.setProperty("value", 0)
+        self.lbl_message.setVisible(False)
+        self.btn_open.setVisible(False)
         
 class ExtractThread(QThread):
     signal_pbar = pyqtSignal(int, name="updateProgressBar")
-    signal_save_csv = pyqtSignal(list, list, str, name="saveCSVFile")
+    signal_save_csv = pyqtSignal(list, str, name="saveCSVFile")
     signal_messagebox = pyqtSignal(str, str, name="showMessageBox")
     def __init__(self, product_name, number_pages):
         QThread.__init__(self)
@@ -254,8 +271,9 @@ class ExtractThread(QThread):
         array_urls = []
         array_phones = []
         scrapeAmazon = ScrapeAmazon()
-        scrapeAmazon.scrape_amazon_products(self.product_name, self.number_pages, self.signal_pbar)
+        products_array = scrapeAmazon.scrape_amazon_products(self.product_name, self.number_pages, self.signal_pbar)
         self.signal_pbar.emit(100)
+        self.signal_save_csv.emit(products_array, 'data_csv')
         # rows_count = data.size
         # for i, row in enumerate(data.iterrows()):
         #     url_to_extract = row[1][0]

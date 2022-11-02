@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>578</width>
-    <height>527</height>
+    <width>580</width>
+    <height>554</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -350,13 +350,37 @@
      <string>$ Max</string>
     </property>
    </widget>
+   <widget class="QPushButton" name="btn_open">
+    <property name="geometry">
+     <rect>
+      <x>230</x>
+      <y>480</y>
+      <width>101</width>
+      <height>31</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <pointsize>10</pointsize>
+      <weight>75</weight>
+      <bold>true</bold>
+     </font>
+    </property>
+    <property name="text">
+     <string>Open file</string>
+    </property>
+    <property name="icon">
+     <iconset>
+      <normaloff>../icons/open.ico</normaloff>../icons/open.ico</iconset>
+    </property>
+   </widget>
   </widget>
   <widget class="QMenuBar" name="menubar">
    <property name="geometry">
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>578</width>
+     <width>580</width>
      <height>21</height>
     </rect>
    </property>

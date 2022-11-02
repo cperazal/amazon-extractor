@@ -1,3 +1,4 @@
+import json
 import re
 import os
 from bs4 import BeautifulSoup
@@ -69,9 +70,7 @@ class ScrapeAmazon():
                             pbar_signal.emit(estimated_percent_advance)
 
                 self.driver.close()
-                return {
-                    "products": self.products_array
-                }
+                return self.products_array
 
         except Exception as e:
             self.logging.reg_log(str(self.driver.current_url) + "\n" + str(e), "error")
@@ -84,6 +83,9 @@ class ScrapeAmazon():
             WebDriverWait(self.driver, 3).until(
                 EC.presence_of_element_located((By.ID, 'productTitle')))
             title = self.driver.find_elements(By.ID, 'productTitle')
+            #   url
+            product.url = self.driver.current_url
+            #   name
             if len(title) > 0:
                 product.name = title[0].text
             # Using beautifulSoup for the others tags
@@ -102,10 +104,40 @@ class ScrapeAmazon():
                     span_price_range = span_price_range[0].findAll("span", {"class": "a-offscreen"})
                     if len(span_price_range) > 0:
                         product.price = span_price_range[0].text + "-" + span_price_range[1].text
+            #   stars
+            span_stars = soup.findAll("span", {"id": "acrPopover"})
+            if len(span_stars) > 0:
+                stars = span_stars[0].find("span", {"class": "a-icon-alt"}).text
+                if len(stars) > 0:
+                    product.stars = stars
+            #   ratings
+            span_ratings = soup.find("span", {"id": "acrCustomerReviewText"})
+            if len(span_ratings) > 0:
+                product.ratings = span_ratings.text
+            #   colors
+            colors_array = []
+            div_colors = soup.find("div", {"id": "variation_color_name"})
+            if len(div_colors) > 0:
+                ul = div_colors.find("ul")
+                if len(ul) > 0:
+                    li_elements = ul.findAll("li")
+                    for li in li_elements:
+                        color = li.find("img")["alt"]
+                        colors_array.append(color)
+                    product.colors = ";".join(colors_array)
+            #   features
+            features_array = []
+            div_features = soup.find("div", {"id": "feature-bullets"})
+            if len(div_features) > 0:
+                ul = div_features.find("ul")
+                if len(ul) > 0:
+                    li_elements = ul.findAll("li")
+                    for li in li_elements:
+                        feature = li.find("span").text
+                        features_array.append(feature)
+                    product.features = ";".join(features_array)
 
-
-            self.products_array.append(product)
+            self.products_array.append(product.to_dict())
 
         except Exception as e:
             self.logging.reg_log(str(self.driver.current_url) + "\n" + str(e), "error")
-            self.driver.close()
