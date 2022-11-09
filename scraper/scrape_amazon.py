@@ -112,14 +112,14 @@ class ScrapeAmazon():
                     product.stars = stars
             #   ratings
             span_ratings = soup.find("span", {"id": "acrCustomerReviewText"})
-            if len(span_ratings) > 0:
+            if span_ratings:
                 product.ratings = span_ratings.text
             #   colors
             colors_array = []
             div_colors = soup.find("div", {"id": "variation_color_name"})
-            if len(div_colors) > 0:
+            if div_colors:
                 ul = div_colors.find("ul")
-                if len(ul) > 0:
+                if ul:
                     li_elements = ul.findAll("li")
                     for li in li_elements:
                         color = li.find("img")["alt"]
@@ -128,14 +128,28 @@ class ScrapeAmazon():
             #   features
             features_array = []
             div_features = soup.find("div", {"id": "feature-bullets"})
-            if len(div_features) > 0:
+            if div_features:
                 ul = div_features.find("ul")
-                if len(ul) > 0:
+                if ul:
                     li_elements = ul.findAll("li")
                     for li in li_elements:
                         feature = li.find("span").text
                         features_array.append(feature)
                     product.features = ";".join(features_array)
+            #   details
+            details_array = []
+            div_details = soup.find("div", {"id": "productOverview_feature_div"})
+            if div_details:
+                table = div_details.find("table")
+                if table:
+                    tr_elements = table.findAll("tr")
+                    for tr in tr_elements:
+                        td_elements = tr.findAll("td")
+                        td_title = td_elements[0].find("span").text
+                        td_value = td_elements[1].find("span").text
+                        detail = str(td_title) + " " + str(td_value)
+                        details_array.append(detail)
+                    product.details = ";".join(details_array)
 
             self.products_array.append(product.to_dict())
 
