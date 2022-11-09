@@ -150,6 +150,12 @@ class ScrapeAmazon():
                         detail = str(td_title) + " " + str(td_value)
                         details_array.append(detail)
                     product.details = ";".join(details_array)
+            #   note
+            div_note = soup.find("div", {"id": "universal-product-alert"})
+            if div_note:
+                spans = div_note.findAll("span")
+                if len(spans) > 0:
+                    product.note = spans[1].text
 
             self.products_array.append(product.to_dict())
 

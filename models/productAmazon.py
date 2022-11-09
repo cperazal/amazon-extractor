@@ -1,7 +1,7 @@
 
 class ProductAmazon:
 
-    def __init__(self, url="", name="", price="", stars="", ratings="", colors="", features="", details=""):
+    def __init__(self, url="", name="", price="", stars="", ratings="", colors="", features="", details="", note=""):
         self.url = url
         self.name = name
         self.price = price
@@ -10,6 +10,7 @@ class ProductAmazon:
         self.colors = colors
         self.features = features
         self.details = details
+        self.note = note
 
     def to_dict(self):
         return {
@@ -20,5 +21,6 @@ class ProductAmazon:
             "ratings": self.ratings,
             "colors": self.colors,
             "features": self.features,
-            "details": self.details
+            "details": self.details,
+            "note": self.note
         }
