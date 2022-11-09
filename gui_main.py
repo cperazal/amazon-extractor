@@ -339,7 +339,7 @@ class WindowAbout(QWidget):
         self.label_3.setText(_translate("Form", u"About this app", None))
         self.label_4.setText(_translate("Form", u"\u00a9 2022 All rights reserved.", None))
         self.label_5.setText(_translate("Form", u"For questions or support, contac us", None))
-        self.label_6.setText(_translate("Form", u"info@totalscraping.com", None))
+        self.label_6.setText(_translate("Form", u"info@okscraping.com", None))
 
 if __name__ == "__main__":
     import sys
