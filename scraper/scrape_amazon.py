@@ -156,6 +156,24 @@ class ScrapeAmazon():
                 spans = div_note.findAll("span")
                 if len(spans) > 0:
                     product.note = spans[1].text
+            #   Sold by and ships from
+            div_soldby = soup.find("div", {"id": "shipsFromSoldByMessage_feature_div"})
+            if div_soldby:                  #   'SHIPS FROM AND SOLD BY AMAZON.COM' in span_soldby.text.upper()
+                span_soldby = div_soldby.find("span")
+                if span_soldby:
+                    product.seller = span_soldby.text
+            else:
+                div_soldby = soup.findAll("div", {"tabular-attribute-name": "Sold by"})
+                if len(div_soldby) > 0:
+                    span_soldby = div_soldby[1].find("span")
+                    if span_soldby:
+                        product.seller = span_soldby.text
+
+                div_ships_from = soup.findAll("div", {"tabular-attribute-name": "Ships from"})
+                if len(div_ships_from) > 0:
+                    span_ships = div_ships_from[1].find("span")
+                    if span_ships:
+                        product.shipsFrom = span_ships.text
 
             self.products_array.append(product.to_dict())
 
