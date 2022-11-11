@@ -26,10 +26,14 @@ class ScrapeAmazon():
         self.driver = webdriver.Chrome(executable_path=os.path.join(basedir, 'chromedriver.exe'))
         self.logging = LoggingApp()
         self.products_array = []
-    def scrape_amazon_products(self, product_name, pages, pbar_signal):
+        self.amazon_sold = 0
+        self.amazon_ships = 0
+    def scrape_amazon_products(self, product_name, pages, pbar_signal, amazon_sold, amazon_ships):
         url = f"https://www.amazon.com/s?k={product_name}"
         arr_href = []
         products_count = 0
+        self.amazon_sold = amazon_sold
+        self.amazon_ships = amazon_ships
 
         try:
             self.driver.get(url)
@@ -174,6 +178,12 @@ class ScrapeAmazon():
                     span_ships = div_ships_from[1].find("span")
                     if span_ships:
                         product.shipsFrom = span_ships.text
+
+            #   Validate sold and ships from amazon
+            if self.amazon_sold == 2 and 'AMAZON' not in product.seller.upper():
+                return
+            if self.amazon_ships == 2 and 'AMAZON' not in product.shipsFrom.upper():
+                return
 
             self.products_array.append(product.to_dict())
 
