@@ -185,7 +185,7 @@ class Ui_MainWindow(object):
             print(self.checkBox_ships.checkState())
             print(self.checkBox_sold.checkState())
             self.progressBar.setVisible(True)
-            self.extract_thread = ExtractThread(self.lineEdit.text(), self.comboBox_pages.currentText(), self.checkBox_sold.checkState(), self.checkBox_ships.checkState())
+            self.extract_thread = ExtractThread(self.lineEdit.text(), self.comboBox_pages.currentText(), self.checkBox_sold.checkState(), self.checkBox_ships.checkState(), self.comboBox_stars.currentText())
             self.extract_thread.signal_pbar.connect(self.updateProgressBar)
             self.extract_thread.signal_save_csv.connect(self.saveCSVFile)
             self.extract_thread.signal_messagebox.connect(self.showMessageBox)
@@ -259,19 +259,20 @@ class ExtractThread(QThread):
     signal_pbar = pyqtSignal(int, name="updateProgressBar")
     signal_save_csv = pyqtSignal(list, str, name="saveCSVFile")
     signal_messagebox = pyqtSignal(str, str, name="showMessageBox")
-    def __init__(self, product_name, number_pages, amazon_sold, amazon_ships):
+    def __init__(self, product_name, number_pages, amazon_sold, amazon_ships, amazon_stars):
         QThread.__init__(self)
         self.product_name = product_name
         self.number_pages = number_pages
         self.amazon_sold = amazon_sold
         self.amazon_ships = amazon_ships
+        self.amazon_stars = amazon_stars
 
     def __del__(self):
         self.wait()
 
     def run(self):
         scrapeAmazon = ScrapeAmazon()
-        products_array = scrapeAmazon.scrape_amazon_products(self.product_name, self.number_pages, self.signal_pbar, self.amazon_sold, self.amazon_ships)
+        products_array = scrapeAmazon.scrape_amazon_products(self.product_name, self.number_pages, self.signal_pbar, self.amazon_sold, self.amazon_ships, self.amazon_stars)
         self.signal_pbar.emit(100)
         self.signal_save_csv.emit(products_array, 'data_csv')
         # rows_count = data.size

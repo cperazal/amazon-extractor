@@ -28,12 +28,13 @@ class ScrapeAmazon():
         self.products_array = []
         self.amazon_sold = 0
         self.amazon_ships = 0
-    def scrape_amazon_products(self, product_name, pages, pbar_signal, amazon_sold, amazon_ships):
+    def scrape_amazon_products(self, product_name, pages, pbar_signal, amazon_sold, amazon_ships, amazon_stars):
         url = f"https://www.amazon.com/s?k={product_name}"
         arr_href = []
         products_count = 0
         self.amazon_sold = amazon_sold
         self.amazon_ships = amazon_ships
+        self.amazon_stars = amazon_stars
 
         try:
             self.driver.get(url)
@@ -184,6 +185,17 @@ class ScrapeAmazon():
                 return
             if self.amazon_ships == 2 and 'AMAZON' not in product.shipsFrom.upper():
                 return
+
+            #   Validate stars
+            if self.amazon_stars != 'All':
+                stars_numbers = re.findall(r'\d+', product.stars)
+                if len(stars_numbers) > 0:
+                    star_num = stars_numbers[0]
+                    star_selected = re.findall(r'\d+', self.amazon_stars)[0]
+                    if float(star_num) < float(star_selected):
+                        return
+                else:
+                    return
 
             self.products_array.append(product.to_dict())
 
