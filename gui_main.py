@@ -10,7 +10,7 @@ import array
 
 
 from PyQt5 import QtCore, QtGui, QtWidgets
-from PyQt5.QtGui import QPixmap, QFont
+from PyQt5.QtGui import QPixmap, QFont, QIntValidator
 from PyQt5.QtWidgets import QFileDialog, QMessageBox, QWidget, QLabel
 from PyQt5.QtCore import QThread, pyqtSignal, QRect
 from scraper.scrape_amazon import ScrapeAmazon
@@ -127,17 +127,19 @@ class Ui_MainWindow(object):
         self.checkBox_price.setGeometry(QtCore.QRect(30, 280, 81, 17))
         self.checkBox_price.setObjectName("checkBox_price")
         self.text_price_min = QtWidgets.QLineEdit(self.centralwidget)
+        self.text_price_min.setValidator(QIntValidator())
         self.text_price_min.setGeometry(QtCore.QRect(190, 280, 151, 21))
         font = QtGui.QFont()
         font.setPointSize(10)
         self.text_price_min.setFont(font)
         self.text_price_min.setObjectName("text_price_min")
-        self.text_price_min_2 = QtWidgets.QLineEdit(self.centralwidget)
-        self.text_price_min_2.setGeometry(QtCore.QRect(390, 280, 151, 21))
+        self.text_price_max = QtWidgets.QLineEdit(self.centralwidget)
+        self.text_price_max.setValidator(QIntValidator())
+        self.text_price_max.setGeometry(QtCore.QRect(390, 280, 151, 21))
         font = QtGui.QFont()
         font.setPointSize(10)
-        self.text_price_min_2.setFont(font)
-        self.text_price_min_2.setObjectName("text_price_min_2")
+        self.text_price_max.setFont(font)
+        self.text_price_max.setObjectName("text_price_max")
         MainWindow.setCentralWidget(self.centralwidget)
         self.menubar = QtWidgets.QMenuBar(MainWindow)
         self.menubar.setGeometry(QtCore.QRect(0, 0, 578, 21))
@@ -179,13 +181,17 @@ class Ui_MainWindow(object):
     def on_click_extract(self):
         if self.lineEdit.text() == "":
             self.showMessageBox("warning", "Please, enter a product name")
+        elif self.checkBox_price.checkState() == 2 and self.text_price_min.text() == "":
+            self.showMessageBox("warning", "Please, enter a min price")
+        elif self.checkBox_price.checkState() == 2 and self.text_price_max.text() == "":
+            self.showMessageBox("warning", "Please, enter a max price")
         else:
-            print(self.comboBox_pages.currentText())
-            print(self.comboBox_stars.currentText())
-            print(self.checkBox_ships.checkState())
-            print(self.checkBox_sold.checkState())
             self.progressBar.setVisible(True)
-            self.extract_thread = ExtractThread(self.lineEdit.text(), self.comboBox_pages.currentText(), self.checkBox_sold.checkState(), self.checkBox_ships.checkState(), self.comboBox_stars.currentText())
+            self.extract_thread = ExtractThread(self.lineEdit.text(), self.comboBox_pages.currentText(),
+                                                self.checkBox_sold.checkState(), self.checkBox_ships.checkState(),
+                                                self.comboBox_stars.currentText(), self.text_price_min.text(),
+                                                self.text_price_max.text(), self.checkBox_price.checkState())
+
             self.extract_thread.signal_pbar.connect(self.updateProgressBar)
             self.extract_thread.signal_save_csv.connect(self.saveCSVFile)
             self.extract_thread.signal_messagebox.connect(self.showMessageBox)
@@ -228,7 +234,7 @@ class Ui_MainWindow(object):
         self.label_4.setText(_translate("MainWindow", "Stars"))
         self.checkBox_price.setText(_translate("MainWindow", "Price range"))
         self.text_price_min.setPlaceholderText(_translate("MainWindow", "$ Min"))
-        self.text_price_min_2.setPlaceholderText(_translate("MainWindow", "$ Max"))
+        self.text_price_max.setPlaceholderText(_translate("MainWindow", "$ Max"))
         self.menuHelp.setTitle(_translate("MainWindow", "Help"))
         self.actionAbout.setText(_translate("MainWindow", "About "))
         self.btn_open.setText(_translate("MainWindow", "Open file"))
@@ -259,44 +265,28 @@ class ExtractThread(QThread):
     signal_pbar = pyqtSignal(int, name="updateProgressBar")
     signal_save_csv = pyqtSignal(list, str, name="saveCSVFile")
     signal_messagebox = pyqtSignal(str, str, name="showMessageBox")
-    def __init__(self, product_name, number_pages, amazon_sold, amazon_ships, amazon_stars):
+    def __init__(self, product_name, number_pages, amazon_sold, amazon_ships,
+                 amazon_stars, price_min, price_max, check_price):
         QThread.__init__(self)
         self.product_name = product_name
         self.number_pages = number_pages
         self.amazon_sold = amazon_sold
         self.amazon_ships = amazon_ships
         self.amazon_stars = amazon_stars
+        self.price_min = price_min
+        self.price_max = price_max
+        self.check_price = check_price
 
     def __del__(self):
         self.wait()
 
     def run(self):
         scrapeAmazon = ScrapeAmazon()
-        products_array = scrapeAmazon.scrape_amazon_products(self.product_name, self.number_pages, self.signal_pbar, self.amazon_sold, self.amazon_ships, self.amazon_stars)
+        products_array = scrapeAmazon.scrape_amazon_products(self.product_name, self.number_pages, self.signal_pbar,
+                                                             self.amazon_sold, self.amazon_ships, self.amazon_stars,
+                                                             self.price_min, self.price_max, self.check_price)
         self.signal_pbar.emit(100)
         self.signal_save_csv.emit(products_array, 'data_csv')
-        # rows_count = data.size
-        # for i, row in enumerate(data.iterrows()):
-        #     url_to_extract = row[1][0]
-        #     if 'http' not in url_to_extract:
-        #         url_to_extract = 'https://' + str(url_to_extract)
-        #     print(url_to_extract)
-        #     array_urls.append(url_to_extract)
-        #     phones_extract = extract_product_by_url(url_to_extract)
-        #     if phones_extract is not None:
-        #         phones_extract = list(dict.fromkeys(phones_extract))
-        #     if phones_extract is None:
-        #         array_phones.append("error")
-        #     elif len(phones_extract) == 0:
-        #         array_phones.append("no phones found")
-        #     else:
-        #         print("Phone: " + str(phones_extract))
-        #         array_phones.append(";".join(phones_extract))
-        #     value = round(int(i + 1) / rows_count * 100)
-        #     self.signal_pbar.emit(value)
-        # 
-        # self.signal_save_csv.emit(array_urls, array_phones, 'data_csv')
-        # self.signal_messagebox.emit("information", "Extract finish!")
 
 class WindowAbout(QWidget):
     def __init__(self):
@@ -326,7 +316,7 @@ class WindowAbout(QWidget):
         self.label_4.setGeometry(QRect(20, 100, 221, 16))
         self.label_5 = QLabel(self)
         self.label_5.setObjectName(u"label_5")
-        self.label_5.setGeometry(QRect(20, 120, 171, 16))
+        self.label_5.setGeometry(QRect(20, 120, 180, 16))
         self.label_6 = QLabel(self)
         self.label_6.setObjectName(u"label_6")
         self.label_6.setGeometry(QRect(20, 140, 161, 16))
@@ -339,8 +329,8 @@ class WindowAbout(QWidget):
         self.label_2.setText(_translate("Form", u"Version 1.0", None))
         self.label_3.setText(_translate("Form", u"About this app", None))
         self.label_4.setText(_translate("Form", u"\u00a9 2022 All rights reserved.", None))
-        self.label_5.setText(_translate("Form", u"For questions or support, contact us", None))
-        self.label_6.setText(_translate("Form", u"info@okscraping.com", None))
+        self.label_5.setText(_translate("Form", u"For questions or support, contact us:", None))
+        self.label_6.setText(_translate("Form", u"support@okscraping.com", None))
 
 if __name__ == "__main__":
     import sys

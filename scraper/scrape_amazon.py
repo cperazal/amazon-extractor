@@ -28,13 +28,16 @@ class ScrapeAmazon():
         self.products_array = []
         self.amazon_sold = 0
         self.amazon_ships = 0
-    def scrape_amazon_products(self, product_name, pages, pbar_signal, amazon_sold, amazon_ships, amazon_stars):
+    def scrape_amazon_products(self, product_name, pages, pbar_signal, amazon_sold, amazon_ships, amazon_stars,
+                               price_min, price_max, check_price):
         url = f"https://www.amazon.com/s?k={product_name}"
-        arr_href = []
         products_count = 0
         self.amazon_sold = amazon_sold
         self.amazon_ships = amazon_ships
         self.amazon_stars = amazon_stars
+        self.price_min = price_min
+        self.price_max = price_max
+        self.check_price = check_price
 
         try:
             self.driver.get(url)
@@ -55,6 +58,7 @@ class ScrapeAmazon():
                 WebDriverWait(self.driver, 3).until(
                     EC.presence_of_element_located((By.ID, 's-skipLinkTargetForMainSearchResults')))
                 product_items = self.driver.find_elements(By.CLASS_NAME, "s-product-image-container")
+                arr_href = []
 
                 if len(product_items) > 0:
                     for product in product_items:
@@ -74,8 +78,8 @@ class ScrapeAmazon():
                         if estimated_percent_advance < 100:
                             pbar_signal.emit(estimated_percent_advance)
 
-                self.driver.close()
-                return self.products_array
+            self.driver.close()
+            return self.products_array
 
         except Exception as e:
             self.logging.reg_log(str(self.driver.current_url) + "\n" + str(e), "error")
@@ -109,6 +113,15 @@ class ScrapeAmazon():
                     span_price_range = span_price_range[0].findAll("span", {"class": "a-offscreen"})
                     if len(span_price_range) > 0:
                         product.price = span_price_range[0].text + "-" + span_price_range[1].text
+            # iff don't have price, try to find the deal
+            if product.price == "":
+                span_price = soup.findAll("span", {"class": "apexPriceToPay"})
+                if len(span_price) > 0:
+                    span_price_value = span_price[0].find("span", {"class": "a-offscreen"})
+                    if len(span_price_value) > 0:
+                        product.price = span_price_value.text
+            if product.price !="":
+                product.price = product.price.replace(",", "")
             #   stars
             span_stars = soup.findAll("span", {"id": "acrPopover"})
             if len(span_stars) > 0:
@@ -180,7 +193,7 @@ class ScrapeAmazon():
                     if span_ships:
                         product.shipsFrom = span_ships.text
 
-            #   Validate sold and ships from amazon
+            #   Validate sold and ships from ama zon
             if self.amazon_sold == 2 and 'AMAZON' not in product.seller.upper():
                 return
             if self.amazon_ships == 2 and 'AMAZON' not in product.shipsFrom.upper():
@@ -197,7 +210,25 @@ class ScrapeAmazon():
                 else:
                     return
 
-            self.products_array.append(product.to_dict())
+            # Validate price range
+            if self.check_price == 2 and product.price != "":
+                if len(span_price) > 0:
+                    price = re.findall("\d+\.\d+", product.price)[0]
+                    if float(self.price_min) <= float(price) and float(price) <= float(self.price_max):
+                        pass
+                    else:
+                        return
+                else:
+                    price_range = re.findall("\d+\.\d+", product.price)
+                    price_1 = float(price_range[0])
+                    price_2 = float(price_range[1])
+                    if price_1 >= float(self.price_min) and price_2 <= float(self.price_max):
+                        pass
+                    else:
+                        return
+
+            if product.to_dict() not in self.products_array:
+                self.products_array.append(product.to_dict())
 
         except Exception as e:
             self.logging.reg_log(str(self.driver.current_url) + "\n" + str(e), "error")
