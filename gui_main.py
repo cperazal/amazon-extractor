@@ -281,6 +281,7 @@ class ExtractThread(QThread):
         self.wait()
 
     def run(self):
+        self.signal_pbar.emit(1)
         scrapeAmazon = ScrapeAmazon()
         products_array = scrapeAmazon.scrape_amazon_products(self.product_name, self.number_pages, self.signal_pbar,
                                                              self.amazon_sold, self.amazon_ships, self.amazon_stars,

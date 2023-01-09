@@ -9,7 +9,9 @@ from selenium import webdriver
 from selenium.webdriver.common.by import By
 from utils.logging import LoggingApp
 from models.productAmazon import ProductAmazon
-
+from selenium.webdriver.chrome.service import Service as ChromeService
+from webdriver_manager.chrome import ChromeDriverManager
+from selenium.webdriver.chrome import options
 basedir = os.path.dirname(__file__)
 
 def normalize_text(text):
@@ -23,7 +25,10 @@ def normalize_text(text):
 
 class ScrapeAmazon():
     def __init__(self):
-        self.driver = webdriver.Chrome(executable_path=os.path.join(basedir, 'chromedriver.exe'))
+        # self.driver = webdriver.Chrome(executable_path=os.path.join(basedir, 'chromedriver.exe')) #PROBLEMA CON LA VERSION DEL CHROMEDRIVER, SIEMPRE TIENE QUE SER IGUAL AL NAVEGADOR
+        self.chrome_options = options.Options()
+        self.chrome_options.headless = True
+        self.driver = webdriver.Chrome(service=ChromeService(ChromeDriverManager().install()),chrome_options=self.chrome_options)
         self.logging = LoggingApp()
         self.products_array = []
         self.amazon_sold = 0
