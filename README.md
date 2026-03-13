@@ -251,5 +251,6 @@ For issues or questions:
 ## License
 
 MIT License
+
 Contact: info@carlosperaza.dev
 
