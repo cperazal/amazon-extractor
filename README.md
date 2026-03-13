@@ -10,6 +10,10 @@ A desktop GUI application for scraping Amazon product data with filtering option
 - 🎨 User-friendly GUI with progress tracking
 - 🔗 Direct file explorer integration to view results
 
+## Preview
+
+![Amazon Extractor Screenshot](/images/screenshot.png)
+
 ## System Requirements
 
 ### Python Version
