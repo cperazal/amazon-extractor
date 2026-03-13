@@ -1,6 +1,8 @@
-import json
 import re
 import os
+import time
+import random
+import subprocess
 from bs4 import BeautifulSoup
 from selenium.webdriver.support.wait import WebDriverWait
 from unicodedata import normalize
@@ -12,6 +14,8 @@ from models.productAmazon import ProductAmazon
 from selenium.webdriver.chrome.service import Service as ChromeService
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.chrome import options
+import config
+
 basedir = os.path.dirname(__file__)
 
 def normalize_text(text):
@@ -23,16 +27,53 @@ def normalize_text(text):
 
     return text_norm
 
+def kill_chrome_processes():
+    """Kill all chromedriver processes"""
+    try:
+        subprocess.run(['taskkill', '/F', '/IM', 'chromedriver.exe'], 
+                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except Exception:
+        pass
+    try:
+        subprocess.run(['taskkill', '/F', '/IM', 'chrome.exe'], 
+                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except Exception:
+        pass
+    time.sleep(1)  # Esperar a que los procesos se cierren
+
 class ScrapeAmazon():
     def __init__(self):
-        # self.driver = webdriver.Chrome(executable_path=os.path.join(basedir, 'chromedriver.exe')) #PROBLEMA CON LA VERSION DEL CHROMEDRIVER, SIEMPRE TIENE QUE SER IGUAL AL NAVEGADOR
+        kill_chrome_processes()
+
         self.chrome_options = options.Options()
-        self.chrome_options.headless = True
-        self.driver = webdriver.Chrome(service=ChromeService(ChromeDriverManager().install()),chrome_options=self.chrome_options)
+
+        # Modo headless controlado por config.HEADLESS_MODE
+        if config.HEADLESS_MODE:
+            self.chrome_options.headless = True
+            self.chrome_options.add_argument('--headless=new')
+
+        # Opciones para navegador invisible
+        self.chrome_options.add_argument('--no-sandbox')
+        self.chrome_options.add_argument('--disable-gpu')
+        self.chrome_options.add_argument('--disable-dev-shm-usage')
+        self.chrome_options.add_argument(f'--window-size={config.WINDOW_WIDTH},{config.WINDOW_HEIGHT}')
+
+        # Opciones anti-detección de bot
+        self.chrome_options.add_argument('--disable-blink-features=AutomationControlled')
+        self.chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
+        self.chrome_options.add_experimental_option('useAutomationExtension', False)
+
+        # User-Agent desde config
+        self.chrome_options.add_argument(f'user-agent={config.USER_AGENT}')
+
+        self.driver = webdriver.Chrome(service=ChromeService(ChromeDriverManager().install()), options=self.chrome_options)
         self.logging = LoggingApp()
         self.products_array = []
         self.amazon_sold = 0
         self.amazon_ships = 0
+        self.request_delay_min = config.REQUEST_DELAY_MIN
+        self.request_delay_max = config.REQUEST_DELAY_MAX
+
     def scrape_amazon_products(self, product_name, pages, pbar_signal, amazon_sold, amazon_ships, amazon_stars,
                                price_min, price_max, check_price):
         url = f"https://www.amazon.com/s?k={product_name}"
@@ -45,10 +86,28 @@ class ScrapeAmazon():
         self.check_price = check_price
 
         try:
-            self.driver.get(url)
-            WebDriverWait(self.driver, 3).until(
-                EC.presence_of_element_located((By.ID, 's-skipLinkTargetForMainSearchResults')))
-            max_pagination_number = self.driver.find_element(By.XPATH, "//div[contains(@class, 's-pagination-container')]//span[contains(@class, 's-pagination-disabled')][2]").text
+            # Intentar acceder a la página principal con reintentos (MAX_RETRIES)
+            loaded = False
+            for attempt in range(config.MAX_RETRIES):
+                try:
+                    self.driver.get(url)
+                    time.sleep(random.uniform(3, 5))  # Espera inicial mayor
+                    WebDriverWait(self.driver, config.WAIT_TIMEOUT).until(
+                        EC.presence_of_element_located((By.ID, 's-skipLinkTargetForMainSearchResults')))
+                    loaded = True
+                    break
+                except Exception as retry_e:
+                    self.logging.reg_log(
+                        f"Intento {attempt + 1}/{config.MAX_RETRIES} fallido: {retry_e}", "warning")
+                    if attempt < config.MAX_RETRIES - 1:
+                        time.sleep(config.RETRY_DELAY)
+
+            if not loaded:
+                self.logging.reg_log("No se pudo cargar la página después de los reintentos.", "error")
+                self.driver.close()
+                return []
+
+            max_pagination_number = self.driver.find_element(By.XPATH, "//*[@class='s-pagination-strip']/ul/span[2]").text
             product_items = self.driver.find_elements(By.CLASS_NAME, "s-product-image-container")
             max_pagination_number = int(max_pagination_number)
 
@@ -58,10 +117,32 @@ class ScrapeAmazon():
             estimated_products = len(product_items) * max_pagination_number
 
             for i in range(0, max_pagination_number):
+                # Delay aleatorio entre solicitudes
+                delay = random.uniform(self.request_delay_min, self.request_delay_max)
+                time.sleep(delay)
+
                 url = f"https://www.amazon.com/s?k={product_name}&page={i+1}"
-                self.driver.get(url)
-                WebDriverWait(self.driver, 3).until(
-                    EC.presence_of_element_located((By.ID, 's-skipLinkTargetForMainSearchResults')))
+
+                # Reintentos por página
+                page_loaded = False
+                for attempt in range(config.MAX_RETRIES):
+                    try:
+                        self.driver.get(url)
+                        time.sleep(random.uniform(2, 3))
+                        WebDriverWait(self.driver, config.WAIT_TIMEOUT).until(
+                            EC.presence_of_element_located((By.ID, 's-skipLinkTargetForMainSearchResults')))
+                        page_loaded = True
+                        break
+                    except Exception as retry_e:
+                        self.logging.reg_log(
+                            f"Página {i+1} - Intento {attempt + 1}/{config.MAX_RETRIES} fallido: {retry_e}", "warning")
+                        if attempt < config.MAX_RETRIES - 1:
+                            time.sleep(config.RETRY_DELAY)
+
+                if not page_loaded:
+                    self.logging.reg_log(f"No se pudo cargar la página {i+1}, se omite.", "warning")
+                    continue
+
                 product_items = self.driver.find_elements(By.CLASS_NAME, "s-product-image-container")
                 arr_href = []
 
@@ -92,9 +173,12 @@ class ScrapeAmazon():
 
     def scrape_product_details(self, url):
         product = ProductAmazon()
+        # Delay aleatorio antes de acceder a la página de detalles
+        time.sleep(random.uniform(self.request_delay_min, self.request_delay_max))
         self.driver.get(url)
+        time.sleep(random.uniform(1, 2))  # Espera después de cargar
         try:
-            WebDriverWait(self.driver, 3).until(
+            WebDriverWait(self.driver, config.PRODUCT_DETAILS_TIMEOUT).until(
                 EC.presence_of_element_located((By.ID, 'productTitle')))
             title = self.driver.find_elements(By.ID, 'productTitle')
             #   url
@@ -106,11 +190,9 @@ class ScrapeAmazon():
             html = self.driver.page_source
             soup = BeautifulSoup(html, 'html.parser')
             #   Price
-            span_price = soup.findAll("span", {"class": "priceToPay"})
+            span_price = soup.find("span", {"id": "apex-pricetopay-accessibility-label"})
             if len(span_price) > 0:
-                span_price_value = span_price[0].find("span", {"class": "a-offscreen"})
-                if len(span_price_value) > 0:
-                    product.price = span_price_value.text
+                product.price = span_price.text
             else:
                 #   Price range
                 span_price_range = soup.findAll("span", {"class": "a-price-range"})
@@ -180,11 +262,10 @@ class ScrapeAmazon():
                 if len(spans) > 0:
                     product.note = spans[1].text
             #   Sold by and ships from
-            div_soldby = soup.find("div", {"id": "shipsFromSoldByMessage_feature_div"})
+            div_soldby = soup.find("a", {"id": "sellerProfileTriggerId"})
             if div_soldby:                  #   'SHIPS FROM AND SOLD BY AMAZON.COM' in span_soldby.text.upper()
-                span_soldby = div_soldby.find("span")
-                if span_soldby:
-                    product.seller = span_soldby.text
+                product.seller = div_soldby.text
+
             else:
                 div_soldby = soup.findAll("div", {"tabular-attribute-name": "Sold by"})
                 if len(div_soldby) > 0:
@@ -192,11 +273,11 @@ class ScrapeAmazon():
                     if span_soldby:
                         product.seller = span_soldby.text
 
-                div_ships_from = soup.findAll("div", {"tabular-attribute-name": "Ships from"})
-                if len(div_ships_from) > 0:
-                    span_ships = div_ships_from[1].find("span")
-                    if span_ships:
-                        product.shipsFrom = span_ships.text
+            div_ships_from = soup.find("div", {"id": "fulfillerInfoFeature_feature_div"})
+            if len(div_ships_from) > 0:
+                span_ships = div_ships_from.findAll("span")
+                if span_ships:
+                    product.shipsFrom = span_ships[1].text
 
             #   Validate sold and ships from ama zon
             if self.amazon_sold == 2 and 'AMAZON' not in product.seller.upper():

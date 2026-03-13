@@ -241,6 +241,8 @@ class Ui_MainWindow(object):
 
     def saveCSVFile(self, array_products, csv_name):
         dir_csv = 'data_output'
+        # Crear directorio si no existe
+        os.makedirs(dir_csv, exist_ok=True)
         json_string = json.dumps(array_products)
         df = pd.read_json(json_string, orient='records')
         df.to_csv(f'{dir_csv}/{csv_name}.csv', index=False, encoding='utf-8-sig')
